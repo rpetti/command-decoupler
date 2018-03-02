@@ -206,7 +206,7 @@ func copyFile(from string, to string) error {
 	return nil
 }
 
-func cleanup(tempDir string) {
+func cleanup(tempDir string, execPath string) {
 	// Retry because windows file locking is garbage
 	for {
 		os.RemoveAll(tempDir)
@@ -215,6 +215,17 @@ func cleanup(tempDir string) {
 			break
 		}
 		time.Sleep(time.Second)
+	}
+	for _, decoupledCmd := range decoupledCommands {
+		decoupledCmd := filepath.Join(execPath, fmt.Sprintf("%s.exe", strings.TrimSuffix(decoupledCmd, filepath.Ext(decoupledCmd))))
+		for {
+			os.Remove(decoupledCmd)
+			_, err := os.Stat(decoupledCmd)
+			if os.IsNotExist(err) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 }
 
@@ -226,23 +237,31 @@ func myUsage() {
 func decoupler() {
 	flag.Usage = myUsage
 	tempDir := filepath.Join(os.Getenv("TEMP"), fmt.Sprintf("command-decoupler-%d", os.Getpid()))
+	execPath := flag.String("path", "", "Path to store executables to intercept calls to commands defined by -cmd")
 	flag.Var(&decoupledCommands, "cmd", "Command that needs to be decoupled. Can be specified multiple times.")
 	flag.Parse()
+	if *execPath == "" {
+		*execPath = tempDir
+	}
+	absPath, err := filepath.Abs(*execPath)
+	if err == nil {
+		*execPath = absPath
+	}
 	if len(decoupledCommands) == 0 || flag.NArg() == 0 {
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	// Create temp directory and copy command hooks
-	err := os.Mkdir(tempDir, 0777)
+	err = os.Mkdir(tempDir, 0777)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer cleanup(tempDir)
+	defer cleanup(tempDir, *execPath)
 	executable, _ := os.Executable()
 	for _, decoupledCmd := range decoupledCommands {
 		decoupledCmd = strings.TrimSuffix(decoupledCmd, filepath.Ext(decoupledCmd))
-		err := copyFile(executable, filepath.Join(tempDir, fmt.Sprintf("%s.exe", decoupledCmd)))
+		err := copyFile(executable, filepath.Join(*execPath, fmt.Sprintf("%s.exe", decoupledCmd)))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -258,7 +277,7 @@ func decoupler() {
 	// Execute wrapped command with tempDir in path
 	cmd := exec.Command(flag.Args()[0], flag.Args()[1:]...)
 	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("PATH=%s;%s", tempDir, os.Getenv("PATH")))
+		fmt.Sprintf("PATH=%s;%s", *execPath, os.Getenv("PATH")))
 	log.Printf("Running: %s", strings.Join(cmd.Args, " "))
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
