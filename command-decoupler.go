@@ -73,6 +73,7 @@ func runCmd(channel chan commandResponseLine, cmd *exec.Cmd) {
 	}
 }
 
+// connectonHandler: Reads the command to execute, runs it, and writes the results back to the client
 func connectionHandler(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
@@ -116,6 +117,7 @@ func connectionHandler(conn net.Conn) {
 	writer.Flush()
 }
 
+// pipeServer: server listener for named pipe
 func pipeServer(comms chan string) {
 	defer close(comms)
 	listener, err := winio.ListenPipe(pipe, &winio.PipeConfig{})
@@ -148,7 +150,9 @@ type commandResponseLine struct {
 	Done       bool
 }
 
+// client: masquerades as an executed sub-command, and asks the server to run the actual command instead
 func client() {
+	// Connect to server
 	timeout := 5 * time.Second
 	log.Println("Command decoupled: ", strings.Join(os.Args, " "))
 	conn, err := winio.DialPipe(pipe, &timeout)
@@ -157,6 +161,7 @@ func client() {
 	}
 	defer conn.Close()
 
+	// Write the command request
 	writer := bufio.NewWriter(conn)
 	gobWriter := gob.NewEncoder(writer)
 	dir, _ := os.Getwd()
@@ -167,6 +172,7 @@ func client() {
 	})
 	writer.Flush()
 
+	// Read and print the command results
 	reader := bufio.NewReader(conn)
 	gobReader := gob.NewDecoder(reader)
 	for {
@@ -201,6 +207,7 @@ func copyFile(from string, to string) error {
 }
 
 func cleanup(tempDir string) {
+	// Retry because windows file locking is garbage
 	for {
 		os.RemoveAll(tempDir)
 		_, err := os.Stat(tempDir)
@@ -226,6 +233,7 @@ func decoupler() {
 		os.Exit(1)
 	}
 
+	// Create temp directory and copy command hooks
 	err := os.Mkdir(tempDir, 0777)
 	if err != nil {
 		log.Fatal(err)
@@ -240,13 +248,14 @@ func decoupler() {
 		}
 	}
 
+	// Start server
 	serverComms := make(chan string)
 	go pipeServer(serverComms)
 	if <-serverComms == "ready" {
 		log.Printf("Decoupler server ready")
 	}
 
-	//TODO: execute wrapped command with tempDir in path
+	// Execute wrapped command with tempDir in path
 	cmd := exec.Command(flag.Args()[0], flag.Args()[1:]...)
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("PATH=%s;%s", tempDir, os.Getenv("PATH")))
@@ -263,8 +272,10 @@ func decoupler() {
 func main() {
 	executable, _ := os.Executable()
 	if strings.HasPrefix(filepath.Base(executable), "command-decoupler") {
+		// We're the server/wrapper
 		decoupler()
 	} else {
+		// We're the masquerading command
 		client()
 	}
 }
