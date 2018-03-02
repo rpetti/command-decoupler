@@ -85,6 +85,7 @@ func connectionHandler(conn net.Conn) {
 	}
 	cmd := exec.Command(cr.Command, cr.Args...)
 	cmd.Env = os.Environ()
+	cmd.Dir = cr.WorkingDir
 	channel := make(chan commandResponseLine)
 	outpipe, _ := cmd.StdoutPipe()
 	errpipe, _ := cmd.StderrPipe()
@@ -135,8 +136,9 @@ func pipeServer(comms chan string) {
 }
 
 type commandRequest struct {
-	Command string
-	Args    []string
+	Command    string
+	Args       []string
+	WorkingDir string
 }
 
 type commandResponseLine struct {
@@ -157,9 +159,11 @@ func client() {
 
 	writer := bufio.NewWriter(conn)
 	gobWriter := gob.NewEncoder(writer)
+	dir, _ := os.Getwd()
 	gobWriter.Encode(commandRequest{
-		Command: os.Args[0],
-		Args:    os.Args[1:],
+		Command:    os.Args[0],
+		Args:       os.Args[1:],
+		WorkingDir: dir,
 	})
 	writer.Flush()
 
@@ -207,10 +211,20 @@ func cleanup(tempDir string) {
 	}
 }
 
+func myUsage() {
+	fmt.Printf("Usage: %s [OPTIONS] <command> <args>...\n", os.Args[0])
+	flag.PrintDefaults()
+}
+
 func decoupler() {
+	flag.Usage = myUsage
 	tempDir := filepath.Join(os.Getenv("TEMP"), fmt.Sprintf("command-decoupler-%d", os.Getpid()))
 	flag.Var(&decoupledCommands, "cmd", "Command that needs to be decoupled. Can be specified multiple times.")
 	flag.Parse()
+	if len(decoupledCommands) == 0 || flag.NArg() == 0 {
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	err := os.Mkdir(tempDir, 0777)
 	if err != nil {
