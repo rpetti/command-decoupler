@@ -23,7 +23,9 @@ var (
 )
 
 const (
+	// STDOUT enum to specify output type
 	STDOUT = 1
+	// STDERR enum to specify output type
 	STDERR = 2
 )
 
