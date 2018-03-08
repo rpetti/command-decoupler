@@ -34,7 +34,7 @@ cmd.exe - sourceanalyzer.exe
                          - regsvr32.exe (Fails to load OCX)
 ```
 
-Using the command-decoupler to move the regsvr32 command to the outside of the mysteriously works fine. The process tree would instead look like this:
+Using the command-decoupler to move the regsvr32 command to the outside of the Fortify process tree mysteriously works fine. The process tree would instead look like this:
 ```
 cmd.exe - command-decoupler.exe
                 |
