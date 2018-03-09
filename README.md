@@ -19,7 +19,7 @@ cmd.exe - command-decoupler.exe
 ```
 
 ## But... Why?
-This program, in most situations, is completely useless. My use-case for this was spurred on by a bug in HPE's Fortify which caused some sub processes be behave incorrectly when wrapped by it's sourceanalyzer command.
+This program, in most situations, is completely useless. My use-case for this was spurred on by a bug in HPE's Fortify which caused some sub processes be behave incorrectly when wrapped by it's sourceanalyzer command. Full blogpost is [here](http://robpetti.com/fortify-breaks-regsvr32/).
 
 For example, if I had a C++ project that was configured to register a COM or OCX object, the following would fail:
 ```
