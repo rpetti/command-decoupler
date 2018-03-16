@@ -216,7 +216,7 @@ func cleanup(tempDir string, execPath string) {
 		if os.IsNotExist(err) {
 			break
 		}
-		time.Sleep(time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 	for _, decoupledCmd := range decoupledCommands {
 		decoupledCmd := filepath.Join(execPath, fmt.Sprintf("%s.exe", strings.TrimSuffix(decoupledCmd, filepath.Ext(decoupledCmd))))
@@ -255,6 +255,7 @@ func decoupler() {
 	}
 
 	// Create temp directory and copy command hooks
+	cleanup(tempDir, *execPath)
 	err = os.Mkdir(tempDir, 0777)
 	if err != nil {
 		log.Fatal(err)
